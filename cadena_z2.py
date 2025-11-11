@@ -1,8 +1,12 @@
 import numpy as np
 import random
+import matplotlib
+matplotlib.use('TkAgg')  # o prueba 'Agg' si no vas a mostrar ventanas
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
-#from numba import njit
+import csv
+from numba import njit
+import concurrent.futures
 #################################
 #           Cadena Z = 2
 ##################################
@@ -45,7 +49,7 @@ def generador_decadenas(l, p_menosuno, p_masuno, p_cero):
 ############################
 # Función de energía
 ############################
-#@njit
+@njit
 def Energy_2(l, celda, celda_embebida0, jota, be, muu):
     """
     Calcula la energía total de la cadena considerando interacción y campo externo.
@@ -86,7 +90,7 @@ def Energy_2(l, celda, celda_embebida0, jota, be, muu):
 ############################
 # Flip spin
 ############################
-#@njit
+@njit
 def flip_spin_2(l, cadena, cadena_embebida, J, B, mu, T):
     """
     Genera nuevas configuraciones de los spines a partir de la configuración anterior.
@@ -111,12 +115,9 @@ def flip_spin_2(l, cadena, cadena_embebida, J, B, mu, T):
     k = 1  # constante de Boltzmann para aumentar probabilidad de salir de mínimo local
     w = 0
 
-    cadena2 = cadena.copy()
-    cadena_embebida2 = cadena_embebida.copy()
-
     while w == 0:
         filasarray = np.arange(0, l, 1)
-        iarb = random.choice(filasarray)
+        iarb = np.random.choice(filasarray)
 
         if cadena[iarb] != 0:
             w = 1
@@ -127,16 +128,16 @@ def flip_spin_2(l, cadena, cadena_embebida, J, B, mu, T):
             r = random.uniform(0, 1)
 
             if Eactual >= Eactual + 2 * e or r < np.exp(-2 * e / (k * T)):
-                cadena_embebida2[iarb + 1] = -cadena_embebida[iarb + 1]
-                cadena2[iarb] = -cadena[iarb]
+                cadena_embebida[iarb + 1] = -cadena_embebida[iarb + 1]
+                cadena[iarb] = -cadena[iarb]
 
-    return [cadena2, cadena_embebida2]
+    return [cadena, cadena_embebida]
 
 
 ############################
 # Evolución temporal
 ############################
-def evolucionar_2(l, celda, celda_embebida, ensamble, ensamble_embebido, J, B, mu, T, n):
+def evolucionar_2(l, cadena, cadena_embebida, J, B, mu, T, n):
     """
     Evoluciona la cadena n pasos usando el método de flip de spins.
 
@@ -163,87 +164,78 @@ def evolucionar_2(l, celda, celda_embebida, ensamble, ensamble_embebido, J, B, m
             Energia (float): energía de la última configuración.
             M (float): magnetización de la última configuración.
     """
-    a = celda.copy()
-    b = celda_embebida.copy()
-
     for j in range(0, n):
-        ab = flip_spin_2(l, a, b, J, B, mu, T).copy()
-        a, b = ab[0], ab[1]
-        ensamble.append(a)
-        ensamble_embebido.append(b)
+        flip_spin_2(l, cadena, cadena_embebida, J, B, mu, T).copy()
+ 
 
-    Cantidades = Energy_2(l, ensamble[-1], ensamble_embebido[-1], J, B, mu)
+    Cantidades = Energy_2(l, cadena, cadena_embebida, J, B, mu)
     return Cantidades[0], Cantidades[1]
-
 
 
 
 ############################
 def m_vs_h_paramagneto_2(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
   "q es la dilucion magnetica, l la longitud de la cadena, el campo magnetico H barre valores desde Hinicial hasa Hfinal en pasos de longitud deltaH, J es el parametro de interaccion, mu el moemnto magnetico, T la temperatura y n el numero de pasos de evolucion paara cada valor del campo magnetico H"
-  ensamble = [] ## aqui se guardan snapshots
-  ensamble_embebido = [] ## // // // // embebidos
+
   energias = []
   magnetizaciones = []
   ## q = 1-probabilidad asignar spin menos uno
   cadena, cadena_embebida = generador_decadenas(l,1-q,0,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno, uno, y cero
 
-  ensamble.append(cadena)
-  ensamble_embebido.append(cadena_embebida)
   Hs = np.arange(Hinicial, Hfinal+deltaH, deltaH)
   lenh = len(Hs)
-  evolucionar_2(l,cadena, cadena_embebida, ensamble, ensamble_embebido,J,Hinicial,mu,T,n)
+  evolucionar_2(l,cadena, cadena_embebida,J,Hinicial,mu,T,n)
 
   # calcular energia y magnetizacion para cada campo magnetico
   for h in Hs:
-      energia_, magnetizacion_ = evolucionar_2(l,ensamble[-1], ensamble_embebido[-1], ensamble, ensamble_embebido,J,h,mu,T,n)
+      energia_, magnetizacion_ = evolucionar_2(l,cadena, cadena_embebida,J,h,mu,T,n)
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
 
+  til = "param_q"+str(q)+"T"+str(T)+"_z2.csv"
+  with open(til, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["H", "M"])  # encabezados opcionales
+    for i in range(len(Hs)):
+        writer.writerow([Hs[i], magnetizaciones[i]])
+
+  plt.plot(Hs, magnetizaciones, 'o', ms=2)
+  plt.title(til)
+  plt.show()
   return Hs, magnetizaciones
 
 
 
-def energia_relajacion_2(q,p,l, J,H,mu,T,n,f):
-  "q es la disolucion magnetica, p la probabilidad de que sea spin negativo, l la longitud de la cadena, J la energia de inter"
-  cadena, cadena_embebida = generador_decadenas(l,p,1-p-q,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno
-  energia_relajacion = []
-  ensamble = []
-  ensamble_embebido = []
-  ensamble.append(cadena)
-  ensamble_embebido.append(cadena_embebida)
-  for j in range(0,f):
-    energia_relajacion.append(evolucionar_2(l,ensamble[-1], ensamble_embebido[-1], ensamble, ensamble_embebido,J,H,mu,T,n)[0])
-  return np.array(energia_relajacion)
 
 
 def histeresis_2(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
-  ensamble = [] ## aqui se guardan snapshots
-  ensamble_embebido = [] ## // // // // embebidos
+
   energias = []
   magnetizaciones = []
   celda, celda_embebida = generador_decadenas(l,1-q,0,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno, uno, y cero
-  ensamble.append(celda)
-  ensamble_embebido.append(celda_embebida)
+
   B_aumentando = np.arange(Binicial, Bfinal+deltab, deltab)
   B_disminuyendo = np.arange(Bfinal-deltab,Binicial,-deltab)
   Bs = np.concatenate((B_aumentando,B_disminuyendo))
   lenb = len(Bs)
-  evolucionar_2(l,celda, celda_embebida, ensamble, ensamble_embebido,J,Binicial,mu,T,n)
+  evolucionar_2(l,celda, celda_embebida,J,Binicial,mu,T,n)
   for b in Bs:
-      energia_, magnetizacion_ = evolucionar_2(l,ensamble[-1], ensamble_embebido[-1], ensamble, ensamble_embebido,J,b,mu,T,n)
+      energia_, magnetizacion_ = evolucionar_2(l,celda,celda_embebida,J,b,mu,T,n)
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
-  a = "Histeresis con q =" +str(q)
-  plt.figure()
-  plt.plot(B_aumentando,magnetizaciones[0:len(B_aumentando)],'o',label = "B aumentando",ms = 0.5)
-  plt.plot(B_disminuyendo,magnetizaciones[len(B_aumentando):lenb],'o',label = "B disminuyendo",ms = 0.5)
-  plt.title(a)
-  plt.xlabel("H")
-  plt.ylabel("M")
-  plt.legend()
-  plt.show()
+  
 
+  til = "histeresis_q"+str(q)+"_z2.csv"
+  with open(til, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["H", "M"])  # encabezados opcionales
+    for i in range(len(Bs)):
+        writer.writerow([Bs[i], magnetizaciones[i]])
+  plt.figure()
+  plt.plot(Bs, magnetizaciones, 'o', ms=2)
+  plt.title(til)
+  plt.grid()
+  plt.show()
   return Bs, magnetizaciones
 
 
@@ -268,17 +260,33 @@ def m_vs_T_ferro_2(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
 
-  return Ts, magnetizaciones, energias, ensamble
+  til = "mtferro_q"+str(q)+"_z2.csv"
+  with open(til, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["T", "M"])  # encabezados opcionales
+    for i in range(len(Ts)):
+        writer.writerow([Ts[i], magnetizaciones[i]])
 
 
 
+  return Ts, magnetizaciones
+
+N = 3000
+l8 = N
+simulaciones = [
+    (0, l8, -100, 100, 0.001, 1, 0.5, 15, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
+    (0.5, l8, -100, 100,0.001, 1, 0.5, 15, 1),
+    (0.8, l8, -100, 100, 0.001, 1, 0.5, 15, 1)
+]
 
 
-
-
-#histeresis_2(0,1000,-300,300,0.05,1,0.5,15,1)
-#Ts3, magnetizaciones3, energias3, ensamble3 = m_vs_T_ferro_2(0,6000,1,70,1,1,0.1,10,900,30000)
-#plt.plot(Ts3,magnetizaciones3,'o',ms = 2, label = "60")   
-#plt.legend()
-#plt.grid(True)
-#plt.show()
+if __name__ == "__main__":
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(histeresis_2, *args): args[0] for args in simulaciones}
+        for future in concurrent.futures.as_completed(futures):
+            q = futures[future]
+            try:
+                result = future.result()  # Esto fuerza a que la función termine
+                print(f"Simulación con q={q} terminada")
+            except Exception as e:
+                print(f"Simulación con q={q} falló: {e}")
