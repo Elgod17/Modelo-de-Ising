@@ -199,14 +199,45 @@ def m_vs_h_paramagneto_2(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
     for i in range(len(Hs)):
         writer.writerow([Hs[i], magnetizaciones[i]])
 
+  plt.figure()
   plt.plot(Hs, magnetizaciones, 'o', ms=2)
   plt.title(til)
   plt.show()
   return Hs, magnetizaciones
 
 
+N = 1000
+l8 = N
+#m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
+modH = 120
+simulaciones = [
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
+    (0.5, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
+    (0.5, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
+    (0.5, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1),
+    (0.8, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
+    (0.8, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
+    (0.8, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1)
+    
+]
 
 
+
+
+
+if __name__ == "__main__":
+    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(m_vs_h_paramagneto_2, *args): args[0] for args in simulaciones}
+        for future in concurrent.futures.as_completed(futures):
+            q = futures[future]
+            try:
+                result = future.result()  # Esto fuerza a que la función termine
+                print(f"Simulación con q={q} terminada")
+            except Exception as e:
+                print(f"Simulación con q={q} falló: {e}")
+##########################################################################
 
 def histeresis_2(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
 
@@ -271,22 +302,3 @@ def m_vs_T_ferro_2(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
 
   return Ts, magnetizaciones
 
-N = 3000
-l8 = N
-simulaciones = [
-    (0, l8, -100, 100, 0.001, 1, 0.5, 15, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
-    (0.5, l8, -100, 100,0.001, 1, 0.5, 15, 1),
-    (0.8, l8, -100, 100, 0.001, 1, 0.5, 15, 1)
-]
-
-
-if __name__ == "__main__":
-    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(histeresis_2, *args): args[0] for args in simulaciones}
-        for future in concurrent.futures.as_completed(futures):
-            q = futures[future]
-            try:
-                result = future.result()  # Esto fuerza a que la función termine
-                print(f"Simulación con q={q} terminada")
-            except Exception as e:
-                print(f"Simulación con q={q} falló: {e}")

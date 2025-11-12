@@ -152,13 +152,15 @@ def m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
   return Hs, magnetizaciones
 
 
-N = 100
+N = 1000
 l8 = int(np.sqrt(1+4*N)-1)
 #m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
+modH = 120
 simulaciones = [
-    (0, l8, -120, 120, 0.001, 1, 0.5, 15, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
-    (0.5, l8, -120, 120,0.001, 1, 0.5, 15, 1),
-    (0.8, l8, -120, 120, 0.001, 1, 0.5, 15, 1)
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
+    (0.5, l8, -modH, modH,0.0001, 1, 0.5, 10, 1),
+    (0.8, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1)
+    
 ]
 
 

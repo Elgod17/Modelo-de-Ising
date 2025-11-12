@@ -121,7 +121,7 @@ def m_vs_h_paramagneto_4(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
 
-  til = "param_q"+str(q)+"_z4.csv"
+  til = "param_q"+str(q)+"T"+str(T)+"_z4.csv"
   with open(til, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["H", "M"])  # encabezados opcionales
@@ -137,7 +137,30 @@ def m_vs_h_paramagneto_4(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
 
   return Hs, magnetizaciones
 
+N = 1000
+l8 = int(np.sqrt(2*N))
+#m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
+modH = 120
+simulaciones = [
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
+    (0, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1)
+    
+]
 
+
+
+
+if __name__ == "__main__":
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(m_vs_h_paramagneto_4, *args): args[0] for args in simulaciones}
+        for future in concurrent.futures.as_completed(futures):
+            q = futures[future]
+            try:
+                result = future.result()  # Esto fuerza a que la función termine
+                print(f"Simulación con q={q} terminada")
+            except Exception as e:
+                print(f"Simulación con q={q} falló: {e}")
 
 ################################################################################################
 
@@ -207,22 +230,3 @@ def m_vs_T_ferro_4(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
 
 
 
-N = 3000
-l8 = int(np.sqrt(2*N))
-simulaciones = [
-    (0, l8, -110, 110, 0.001, 1, 0.5, 15, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
-    (0.5, l8, -110, 110,0.001, 1, 0.5, 15, 1),
-    (0.8, l8, -110, 110, 0.001, 1, 0.5, 15, 1)
-]
-
-
-if __name__ == "__main__":
-    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(histeresis_4, *args): args[0] for args in simulaciones}
-        for future in concurrent.futures.as_completed(futures):
-            q = futures[future]
-            try:
-                result = future.result()  # Esto fuerza a que la función termine
-                print(f"Simulación con q={q} terminada")
-            except Exception as e:
-                print(f"Simulación con q={q} falló: {e}")
