@@ -137,35 +137,35 @@ def m_vs_h_paramagneto_4(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
 
   return Hs, magnetizaciones
 
-N = 1000
-l8 = int(np.sqrt(2*N))
-#m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
-modH = 120
-simulaciones = [
-    (0, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
-    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
-    (0, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1)
-    
-]
-
-
-
-
-if __name__ == "__main__":
-    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(m_vs_h_paramagneto_4, *args): args[0] for args in simulaciones}
-        for future in concurrent.futures.as_completed(futures):
-            q = futures[future]
-            try:
-                result = future.result()  # Esto fuerza a que la función termine
-                print(f"Simulación con q={q} terminada")
-            except Exception as e:
-                print(f"Simulación con q={q} falló: {e}")
-
-################################################################################################
-
-
-
+#N = 1000
+#l8 = int(np.sqrt(2*N))
+##m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
+#modH = 120
+#simulaciones = [
+#    (0, l8, -modH, modH, 0.0001, 1, 0.5, 15, 1),
+#    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1), 
+#    (0, l8, -modH, modH, 0.0001, 1, 0.5, 5, 1)
+#    
+#]
+#
+#
+#
+#
+#if __name__ == "__main__":
+#    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+#        futures = {executor.submit(m_vs_h_paramagneto_4, *args): args[0] for args in simulaciones}
+#        for future in concurrent.futures.as_completed(futures):
+#            q = futures[future]
+#            try:
+#                result = future.result()  # Esto fuerza a que la función termine
+#                print(f"Simulación con q={q} terminada")
+#            except Exception as e:
+#                print(f"Simulación con q={q} falló: {e}")
+#
+#################################################################################################
+#
+#
+#
 def histeresis_4(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
 
   energias = []
@@ -201,32 +201,55 @@ def histeresis_4(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
 
 
 def m_vs_T_ferro_4(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
-  ensamble = [] ## aqui se guardan snapshots
-  ensamble_embebido = [] ## // // // // embebidos
   energias = []
   magnetizaciones = []
   ## q = 1-probabilidad asignar spin menos uno
-  celda, celda_embebida = generador_4(l,1-q,0,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno, uno, y cero
+  celda, celda_embebida = generador_4(l,0,1-q,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno, uno, y cero
 
-  ensamble.append(celda)
-  ensamble_embebido.append(celda_embebida)
   Ts = np.arange(Tinicial+deltaT, Tfinal+deltaT, deltaT)
   lent = len(Ts)
-  evolucionar_4(l,celda, celda_embebida, ensamble, ensamble_embebido,J,H,mu,Tinicial,f)
+  evolucionar_4(l,celda, celda_embebida,J,H,mu,Tinicial,f)
 
   for t in Ts:
-      energia_, magnetizacion_ = evolucionar_4(l,ensamble[-1], ensamble_embebido[-1], ensamble, ensamble_embebido,J,H,mu,t,n)
+      energia_, magnetizacion_ = evolucionar_4(l,celda, celda_embebida,J,H,mu,t,n)
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
+
+  m_normalizado = np.array(magnetizaciones)/magnetizaciones[0]
 
   til = "mtferro_q"+str(q)+"_z4.csv"
   with open(til, "w", newline="") as f:
     writer = csv.writer(f)
-    writer.writerow(["T", "M"])  # encabezados opcionales
+    writer.writerow(["T", "M", "Mn"])  # encabezados opcionales
     for i in range(len(Ts)):
-        writer.writerow([Ts[i], magnetizaciones[i]])
+        writer.writerow([Ts[i], magnetizaciones[i], m_normalizado[i]])
+  plt.figure()
+  plt.plot(Ts, m_normalizado, 'o', ms=2)
+  plt.title(til)
+  plt.show()
+  return Ts, magnetizaciones
 
-  return Ts, magnetizaciones, ensamble
-
-
-
+##m_vs_T_ferro(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f)
+#N = 4000
+#l8 = int(np.sqrt(2*N))
+#
+#
+#
+#
+#simulaciones = [
+#    (0,l8,0.1,60,0.1,1,0.5,2,600,1),  
+#    (0.5,l8,0.1,60,0.1,1,0.5,2,600,1),
+#    (0.8,l8,0.1,60,0.1,1,0.5,2,600,1)  
+#]
+#
+#
+#if __name__ == "__main__":
+#    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+#        futures = {executor.submit(m_vs_T_ferro_4, *args): args[0] for args in simulaciones}
+#        for future in concurrent.futures.as_completed(futures):
+#            q = futures[future]
+#            try:
+#                result = future.result()  # Esto fuerza a que la función termine
+#                print(f"Simulación con q={q} terminada")
+#            except Exception as e:
+#                print(f"Simulación con q={q} falló: {e}")
