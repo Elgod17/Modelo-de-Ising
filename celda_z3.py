@@ -135,13 +135,14 @@ def m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
       energias.append(energia_)
       magnetizaciones.append(magnetizacion_)
 
+  m_normalizado = np.array(magnetizaciones)/abs(magnetizaciones[0])
 
-  til = "param_q"+str(q)+"T"+str(T)+"_z3.csv"
+  til = "parama_q"+str(q)+"T"+str(T)+"_z3.csv"
   with open(til, "w", newline="") as f:
     writer = csv.writer(f)
-    writer.writerow(["H", "M"])  # encabezados opcionales
+    writer.writerow(["H", "M", "Mn"])  # encabezados opcionales
     for i in range(len(Hs)):
-        writer.writerow([Hs[i], magnetizaciones[i]])
+        writer.writerow([Hs[i], magnetizaciones[i], m_normalizado[i]])
 
   plt.figure()
   plt.plot(Hs, magnetizaciones, 'o', ms=2)
@@ -152,29 +153,35 @@ def m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n):
   return Hs, magnetizaciones
 
 
-N = 1000
-l8 = int(np.sqrt(1+4*N)-1)
-#m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
-modH = 120
-simulaciones = [
-    (0, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1),  # q, l, Binicial, Bfinal, deltab, J, mu, T, n
-    (0.5, l8, -modH, modH,0.0001, 1, 0.5, 10, 1),
-    (0.8, l8, -modH, modH, 0.0001, 1, 0.5, 10, 1),
-    
-]
-
-
-if __name__ == "__main__":
-    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(m_vs_h_paramagneto, *args): args[0] for args in simulaciones}
-        for future in concurrent.futures.as_completed(futures):
-            q = futures[future]
-            try:
-                result = future.result()  # Esto fuerza a que la función termine
-                print(f"Simulación con q={q} terminada")
-            except Exception as e:
-                print(f"Simulación con q={q} falló: {e}")
-#####################################################################################
+#N = 100
+#l8 = int(np.sqrt(1+4*N)-1)
+##m_vs_h_paramagneto(q,l,Hinicial,Hfinal,deltaH,J,mu,T,n)
+#modH = 100
+#simulaciones = [
+#    (0, l8, -modH, modH, 0.001, 1, 0.5, 4, 1),
+#    (0, l8, -modH, modH, 0.001, 1, 0.5, 9, 1),
+#    (0, l8, -modH, modH, 0.001, 1, 0.5, 15, 1),    # q, l, Binicial, Bfinal, deltab, J, mu, T, n
+#    (0.5, l8, -modH, modH, 0.001, 1, 0.5, 4, 1),
+#    (0.5, l8, -modH, modH, 0.001, 1, 0.5, 9, 1),
+#    (0.5, l8, -modH, modH, 0.001, 1, 0.5, 15, 1),
+#    (0.8, l8, -modH, modH, 0.001, 1, 0.5, 4, 1),
+#    (0.8, l8, -modH, modH, 0.001, 1, 0.5, 9, 1),
+#    (0.8, l8, -modH, modH, 0.001, 1, 0.5, 15, 1)
+#    
+#]
+#
+#
+#if __name__ == "__main__":
+#    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+#        futures = {executor.submit(m_vs_h_paramagneto, *args): args[0] for args in simulaciones}
+#        for future in concurrent.futures.as_completed(futures):
+#            q = futures[future]
+#            try:
+#                result = future.result()  # Esto fuerza a que la función termine
+#                print(f"Simulación con q={q} terminada")
+#            except Exception as e:
+#                print(f"Simulación con q={q} falló: {e}")
+######################################################################################
 ### Hacer histeresis. En el proceso de histeresis, la magnetizacion inicial debe de ser completamente negativa o completamente positiva
 def histeresis(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
 
@@ -281,3 +288,61 @@ def m_vs_T_ferro(q,p,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
 #                print(f"Simulación con q={q} terminada")
 #            except Exception as e:
 #                print(f"Simulación con q={q} falló: {e}")
+
+
+
+
+
+
+############### ENERGIA DE RELAJACION ####################################################
+def energia_relajacion_3(q,p,l, J,H,mu,T,n):
+  """q es la probabilidad de que el nodo sea vacío,
+    ,p la probabilidad de que el nodo tenga spin negativo, 
+  l**2 es tal que da el numero de hexagonos, J la energia de interaccion, H la induccion magnetica, mu el momento magnetico, T la temperatura y n el numero de replicas para promediar la energia de relajacion
+  T la temperatura y n el numero de pasos Monte Carlo
+  """
+  celda, celda_embebida = generador_deceldas(l,p,1-p-q,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno
+
+  energia_relajacion = []
+  for j in range(n):
+    energia_relajacion.append(evolucionar_celda(l,celda,celda_embebida,J,H,mu,T,1)[0])
+
+
+  til = "Energia de relajacion_q="+str(q)+",T="+str(T)+",z=3,H="+str(H)+".csv"
+  with open(til, "w", newline="") as f:
+      writer = csv.writer(f)
+      writer.writerow(["E"])  # encabezado
+      for energia in energia_relajacion:
+          writer.writerow([energia])
+
+  plt.figure()
+  plt.plot(energia_relajacion, 'o', ms=2)
+  plt.title(til)
+  plt.show()
+
+  return energia_relajacion
+
+
+N = 500
+l8 = int(np.sqrt(1+4*N)-1)
+
+#
+#energia_relajacion_2(q,p,l, J,H,mu,T,f)
+simulaciones = [
+    (0,0,l8, 1,10,0.5,15,25000),
+    (0.5,0,l8, 1,10,0.5,15,25000),
+    (0.8,0,l8, 1,10,0.5,15,25000)
+     
+]
+
+
+if __name__ == "__main__":
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(energia_relajacion_3, *args): args[0] for args in simulaciones}
+        for future in concurrent.futures.as_completed(futures):
+            q = futures[future]
+            try:
+                result = future.result()  # Esto fuerza a que la función termine
+                print(f"Simulación con q={q} terminada")
+            except Exception as e:
+                print(f"Simulación con q={q} falló: {e}")
