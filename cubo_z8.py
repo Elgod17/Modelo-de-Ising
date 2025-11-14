@@ -204,124 +204,247 @@ def histeresis_8(q,l,Binicial,Bfinal,deltab,J,mu,T,n):
   return Bs, magnetizaciones
 
 
+####################################################
+
+################################################ MAGNETIZACION VS TEMPERATURA  Z = 8  #######################################################
+
+def m_vs_T_ferro_8_single(q, l, Tinicial, Tfinal, deltaT, J, mu, H, n, f):
+    """Una sola réplica de magnetización vs temperatura"""
+    energias = []
+    magnetizaciones = []
+    
+    # Generar celda inicial con p=0
+    celda, celda_embebida = generador_8(l, 0, 1-q, q)
+    
+    # Termalizar a temperatura inicial
+    evolucionar_8(l, celda, celda_embebida, J, H, mu, Tinicial, f)
+    
+    # Evolucionar a cada temperatura
+    Ts = np.arange(Tinicial + deltaT, Tfinal + deltaT, deltaT)
+    
+    for t in Ts:
+        energia_, magnetizacion_ = evolucionar_8(l, celda, celda_embebida, J, H, mu, t, n)
+        energias.append(energia_)
+        magnetizaciones.append(magnetizacion_)
+    
+    return energias, magnetizaciones
 
 
-def m_vs_T_ferro_8(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f):
-  ensamble = [] ## aqui se guardan snapshots
-  ensamble_embebido = [] ## // // // // embebidos
-  energias = []
-  magnetizaciones = []
-  ## q = 1-probabilidad asignar spin menos uno
-  cubo, cubo_embebido = generador_8(l,0,1-q,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno, uno, y cero
-
-  ensamble.append(cubo)
-  ensamble_embebido.append(cubo_embebido)
-  Ts = np.arange(Tinicial+deltaT, Tfinal+deltaT, deltaT)
-  lent = len(Ts)
-  evolucionar_8(l,cubo, cubo_embebido,J,H,mu,Tinicial,f)
-
-  for t in Ts:
-      energia_, magnetizacion_ = evolucionar_8(l,cubo,cubo_embebido,J,H,mu,t,n)
-      energias.append(energia_)
-      magnetizaciones.append(magnetizacion_)
-
-  m_normalizado = np.array(magnetizaciones)/magnetizaciones[0]
-
-  til = "mtferro_q"+str(q)+"_z8.csv"
-  with open(til, "w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(["T", "M", "Mn"])  # encabezados opcionales
-    for i in range(len(Ts)):
-        writer.writerow([Ts[i], magnetizaciones[i], m_normalizado[i]])
-  plt.figure()
-  plt.plot(Ts, m_normalizado, 'o', ms=2)
-  plt.title(til)
-  plt.show()
-  return Ts, magnetizaciones
-
-##m_vs_T_ferro(q,l,Tinicial,Tfinal,deltaT,J,mu,H,n,f)
-#N = 2000
-#l8 = int((2*N)**(1/3))
-#
-#
-#
-#
-#simulaciones = [
-#    (0,l8,0.1,60,0.1,1,0.5,2,600,1),  
-#    (0.5,l8,0.1,60,0.1,1,0.5,2,600,1),
-#    (0.8,l8,0.1,60,0.1,1,0.5,2,600,1)  
-#]
-#
-#
-#if __name__ == "__main__":
-#    with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
-#        futures = {executor.submit(m_vs_T_ferro_8, *args): args[0] for args in simulaciones}
-#        for future in concurrent.futures.as_completed(futures):
-#            q = futures[future]
-#            try:
-#                result = future.result()  # Esto fuerza a que la función termine
-#                print(f"Simulación con q={q} terminada")
-#            except Exception as e:
-#                print(f"Simulación con q={q} falló: {e}")
-#
-#
-#
+# FUNCIÓN AUXILIAR PARA PARALELIZAR RÉPLICAS
+def replica_individual_mT_8(args):
+    """Ejecuta una réplica individual de m vs T"""
+    q, l, Tinicial, Tfinal, deltaT, J, mu, H, n, f, replica_num = args
+    
+    energias = []
+    magnetizaciones = []
+    
+    # Generar celda inicial con p=0
+    celda, celda_embebida = generador_8(l, 0, 1-q, q)
+    
+    # Termalizar a temperatura inicial
+    evolucionar_8(l, celda, celda_embebida, J, H, mu, Tinicial, f)
+    
+    # Evolucionar a cada temperatura
+    Ts = np.arange(Tinicial + deltaT, Tfinal + deltaT, deltaT)
+    
+    for t in Ts:
+        energia_, magnetizacion_ = evolucionar_8(l, celda, celda_embebida, J, H, mu, t, n)
+        energias.append(energia_)
+        magnetizaciones.append(magnetizacion_)
+    
+    return energias, magnetizaciones
 
 
-
-
-
-
-
-############### ENERGIA DE RELAJACION ####################################################
-def energia_relajacion_8(q,p,l, J,H,mu,T,n):
-  """q es la probabilidad de que el nodo sea vacío,
-    ,p la probabilidad de que el nodo tenga spin negativo, 
-  l es la longitud de un lado del cubo, J la energia de interaccion, H la induccion magnetica, mu el momento magnetico, T la temperatura y n el numero de replicas para promediar la energia de relajacion
-  T la temperatura y n el numero de pasos Monte Carlo
-  """
-  celda, celda_embebida = generador_8(l,p,1-p-q,q)  ## numeros de bloques l, probabilidad de asignar spin menos uno
-
-  energia_relajacion = []
-  for j in range(n):
-    energia_relajacion.append(evolucionar_8(l,celda,celda_embebida,J,H,mu,T,1)[0])
-
-
-  til = "Energia de relajacion_q="+str(q)+",T="+str(T)+",z=8,H="+str(H)+".csv"
-  with open(til, "w", newline="") as f:
-      writer = csv.writer(f)
-      writer.writerow(["E"])  # encabezado
-      for energia in energia_relajacion:
-          writer.writerow([energia])
-
-  plt.figure()
-  plt.plot(energia_relajacion, 'o', ms=2)
-  plt.title(til)
-  plt.show()
-
-  return energia_relajacion
+def m_vs_T_ferro_8_optimizada(q, N, l, Tinicial, Tfinal, deltaT, J, mu, H, n, f, num_replicas=10, max_workers=10):
+    """Versión optimizada que paraleliza las réplicas individuales"""
+    
+    print(f"\nIniciando simulación m vs T: q={q}, N={N}")
+    print(f"  Rango de temperaturas: {Tinicial} → {Tfinal} (ΔT={deltaT})")
+    print(f"  Ejecutando {num_replicas} réplicas en paralelo con {max_workers} núcleos...")
+    
+    # Preparar argumentos para cada réplica
+    args_replicas = [(q, l, Tinicial, Tfinal, deltaT, J, mu, H, n, f, i) for i in range(num_replicas)]
+    
+    # Ejecutar réplicas en paralelo
+    todas_energias = []
+    todas_magnetizaciones = []
+    completadas = 0
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(replica_individual_mT_8, args): i for i, args in enumerate(args_replicas)}
+        
+        for future in concurrent.futures.as_completed(futures):
+            replica_num = futures[future]
+            try:
+                energias, magnetizaciones = future.result()
+                todas_energias.append(energias)
+                todas_magnetizaciones.append(magnetizaciones)
+                completadas += 1
+                if completadas % 5 == 0 or completadas == num_replicas:
+                    print(f"    Progreso: {completadas}/{num_replicas} réplicas completadas")
+            except Exception as e:
+                print(f"    ✗ Réplica {replica_num+1} falló: {e}")
+    
+    # Convertir a numpy array para calcular estadísticas
+    todas_energias = np.array(todas_energias)
+    todas_magnetizaciones = np.array(todas_magnetizaciones)
+    
+    # Calcular promedio y error estándar
+    energia_promedio = np.mean(todas_energias, axis=0)
+    error_energia = np.std(todas_energias, axis=0) / np.sqrt(len(todas_energias))
+    
+    mag_promedio = np.mean(todas_magnetizaciones, axis=0)
+    error_mag = np.std(todas_magnetizaciones, axis=0) / np.sqrt(len(todas_magnetizaciones))
+    
+    # Normalizar por el valor inicial
+    m_normalizado = mag_promedio / mag_promedio[0]
+    error_normalizado = error_mag / mag_promedio[0]
+    
+    # Temperaturas
+    Ts = np.arange(Tinicial + deltaT, Tfinal + deltaT, deltaT)
+    
+    # Guardar datos individuales en NPZ (comprimido)
+    nombre_npz = f"Magnetizacion_vs_T_N={N},q={q},Ti={Tinicial},Tf={Tfinal},z=8,H={H}_individual.npz"
+    np.savez_compressed(nombre_npz,
+                       temperaturas=Ts,
+                       energia_promedio=energia_promedio,
+                       error_energia=error_energia,
+                       magnetizacion_promedio=mag_promedio,
+                       magnetizacion_normalizada=m_normalizado,
+                       error_mag=error_mag,
+                       error_normalizado=error_normalizado,
+                       q=q, N=N, Tinicial=Tinicial, Tfinal=Tfinal, 
+                       H=H, J=J, mu=mu,
+                       num_replicas=len(todas_magnetizaciones))
+    
+    print(f"✓ Simulación q={q} completada y guardada en {nombre_npz}\n")
+    return q, N, Ts, energia_promedio, mag_promedio, m_normalizado, error_energia, error_mag, error_normalizado
 
 
 N = 1000
-l8 = int((2*N)**(1/3))
+# Para z=8 (red cúbica simple): N_sitios = l^3/2
+l = int(np.ceil((2*N)**(1/3)))
+N_real = l**3 // 2
 
-#
-#energia_relajacion_8(q,p,l, J,H,mu,T,f)
+print(f"N solicitado: {N}")
+print(f"l calculado: {l}")
+print(f"N real (sitios efectivos): {N_real}")
+
+# Parámetros ajustables
+NUM_NUCLEOS = 10  # Número total de núcleos disponibles
+NUM_REPLICAS = 100  # Número de réplicas por simulación
+
+# Parámetros de temperatura
+TINICIAL = 0.1
+TFINAL = 60
+DELTA_T = 0.5
+
+# m_vs_T_ferro_8_optimizada(q, N, l, Tinicial, Tfinal, deltaT, J, mu, H, n, f, num_replicas, max_workers)
 simulaciones = [
-    (0,0,l8, 1,10,0.5,15,25000),
-    (0.5,0,l8, 1,10,0.5,15,25000),
-    (0.8,0,l8, 1,10,0.5,15,25000)
-     
+    (0,   N_real, l, TINICIAL, TFINAL, DELTA_T, 1, 0.5, 10, 1000, 5000, NUM_REPLICAS, NUM_NUCLEOS),
+    (0.5, N_real, l, TINICIAL, TFINAL, DELTA_T, 1, 0.5, 10, 1000, 5000, NUM_REPLICAS, NUM_NUCLEOS),
+    (0.8, N_real, l, TINICIAL, TFINAL, DELTA_T, 1, 0.5, 10, 1000, 5000, NUM_REPLICAS, NUM_NUCLEOS)
 ]
 
 
 if __name__ == "__main__":
-    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(energia_relajacion_8, *args): args[0] for args in simulaciones}
-        for future in concurrent.futures.as_completed(futures):
-            q = futures[future]
-            try:
-                result = future.result()  # Esto fuerza a que la función termine
-                print(f"Simulación con q={q} terminada")
-            except Exception as e:
-                print(f"Simulación con q={q} falló: {e}")
+    resultados = []
+    
+    print(f"\n" + "=" * 70)
+    print(f"INICIANDO SIMULACIONES M vs T")
+    print(f"=" * 70)
+    print(f"Total de configuraciones: {len(simulaciones)}")
+    print(f"Réplicas por configuración: {NUM_REPLICAS}")
+    print(f"Núcleos disponibles: {NUM_NUCLEOS}")
+    print(f"N (sitios efectivos): {N_real}")
+    print(f"Rango T: {TINICIAL} → {TFINAL} (ΔT={DELTA_T})")
+    print(f"=" * 70)
+    
+    # ESTRATEGIA: Ejecutar simulaciones secuencialmente, 
+    # pero paralelizar las réplicas dentro de cada una
+    for args in simulaciones:
+        try:
+            result = m_vs_T_ferro_8_optimizada(*args)
+            resultados.append(result)
+        except Exception as e:
+            q = args[0]
+            print(f"✗ Simulación con q={q} falló: {e}\n")
+    
+    # Ordenar resultados por q
+    resultados.sort(key=lambda x: x[0])
+    
+    # Crear gráfico con dos subplots (sin energía)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    colores = plt.cm.viridis(np.linspace(0, 0.9, len(resultados)))
+    
+    for idx, (q, N_sim, Ts, energia_promedio, mag_promedio, m_normalizado, 
+              error_energia, error_mag, error_normalizado) in enumerate(resultados):
+        
+        # Gráfico 1: Magnetización absoluta
+        ax1.plot(Ts, mag_promedio, '-', color=colores[idx], 
+                label=f'q={q}', linewidth=2, alpha=0.8)
+        ax1.fill_between(Ts, 
+                        mag_promedio - error_mag,
+                        mag_promedio + error_mag,
+                        color=colores[idx], alpha=0.2)
+        
+        # Gráfico 2: Magnetización normalizada
+        ax2.plot(Ts, m_normalizado, '-', color=colores[idx], 
+                label=f'q={q}', linewidth=2, alpha=0.8)
+        ax2.fill_between(Ts, 
+                        m_normalizado - error_normalizado,
+                        m_normalizado + error_normalizado,
+                        color=colores[idx], alpha=0.2)
+    
+    # Configurar gráfico 1
+    ax1.set_xlabel('Temperatura (T)', fontsize=12)
+    ax1.set_ylabel('Magnetización', fontsize=12)
+    ax1.set_title(f'Magnetización vs Temperatura\n(N={N_real}, H={simulaciones[0][8]}, z=8)', fontsize=12)
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    
+    # Configurar gráfico 2
+    ax2.set_xlabel('Temperatura (T)', fontsize=12)
+    ax2.set_ylabel('Magnetización Normalizada (m/m₀)', fontsize=12)
+    ax2.set_title(f'Magnetización Normalizada vs Temperatura\n(N={N_real}, H={simulaciones[0][8]}, z=8)', fontsize=12)
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3)
+    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+    
+    plt.suptitle(f'{NUM_REPLICAS} réplicas por configuración', fontsize=14, y=1.02)
+    plt.tight_layout()
+    
+    # Guardar también la figura
+    nombre_figura = f"grafica_m_vs_T_N={N_real}_Ti={TINICIAL}_Tf={TFINAL}_H={simulaciones[0][8]}_z8.png"
+    plt.savefig(nombre_figura, dpi=300, bbox_inches='tight')
+    print(f"\n✓ Gráfica guardada en: {nombre_figura}")
+    
+    plt.show()
+    
+    # Guardar datos consolidados en formato .npz
+    datos_guardar = {}
+    for q, N_sim, Ts, energia_promedio, mag_promedio, m_normalizado, error_energia, error_mag, error_normalizado in resultados:
+        datos_guardar[f'q_{q}_energia'] = energia_promedio
+        datos_guardar[f'q_{q}_error_energia'] = error_energia
+        datos_guardar[f'q_{q}_mag'] = mag_promedio
+        datos_guardar[f'q_{q}_mag_norm'] = m_normalizado
+        datos_guardar[f'q_{q}_error_mag'] = error_mag
+        datos_guardar[f'q_{q}_error_norm'] = error_normalizado
+    
+    datos_guardar['temperaturas'] = resultados[0][2]
+    datos_guardar['parametros'] = np.array([simulaciones[0][6:9]])  # J, mu, H
+    datos_guardar['N'] = N_real
+    datos_guardar['num_replicas'] = NUM_REPLICAS
+    datos_guardar['z'] = 8
+    
+    nombre_archivo = f"resultados_consolidados_m_vs_T_N={N_real}_Ti={TINICIAL}_Tf={TFINAL}_H={simulaciones[0][8]}_z8.npz"
+    np.savez_compressed(nombre_archivo, **datos_guardar)
+    
+    print(f"\n{'=' * 70}")
+    print(f"✓ Datos consolidados guardados en: {nombre_archivo}")
+    print(f"  Claves guardadas: {list(datos_guardar.keys())}")
+    print(f"{'=' * 70}")
+    print("TODAS LAS SIMULACIONES COMPLETADAS")
+    print(f"{'=' * 70}")
+
+#
